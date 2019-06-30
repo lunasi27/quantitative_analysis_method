@@ -25,7 +25,7 @@ import pdb
 #     market_type = StringField(max_legth=30, required=True)
 
 
-class MongoDB:
+class TradeDB:
     def __init__(self):
         client = pymongo.MongoClient(host='localhost', port=27017)
         db = client.test
@@ -50,11 +50,11 @@ class MongoDB:
             'position_type': position_type,
             'sell_time': sell_time
         }
-        query = {'stock': stock}
+        query = {'stock': stock, 'sell_price': {'$exists': False}}
         value = {'$set': trade_data}
         self.collection.update_one(query, value)
 
-    def searchSellCandidate(self):
+    def findOpenTradePairs(self):   
         results = self.collection.find({'sell_price': {'$exists': False}})
         sell_candidate = {item['stock']: (item['buy_time'], item['buy_price']) for item in results}
         return sell_candidate
@@ -70,7 +70,7 @@ if __name__ == '__main__':
     tt = MongoDB()
     for trade in data_list:
         tt.insertBuyData(trade['stock'], trade['buy_price'], trade['buy_reason'], trade['position_type'], trade['position_num'], trade['market_type'])
-        ss = tt.searchSellCandidate()
+        ss = tt.findOpenTradePairs()
         for s in ss:
             print(s)
             pdb.set_trace()
