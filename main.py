@@ -37,5 +37,5 @@ def after_trading(context):
 def handle_bar(context, bar_dict):
     #pdb.set_trace()
     ts = context.ts
-    ts.trade(context.now)
+    ts.trade(context, bar_dict)
     

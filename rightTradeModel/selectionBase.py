@@ -173,9 +173,11 @@ class SelChaseRise(SelBase):
         selected_stocks = self.riseStopCheck(selected_stocks)
         selected_stocks = self.riseRateCheck(selected_stocks)
         selected_stocks = self.breakStrength(selected_stocks)
-        self.selected_stocks = self.rsiCheck(selected_stocks)
-        self.logger.info('符合追涨条件股票%d个' % len(self.selected_stocks))
+        selected_stocks = self.rsiCheck(selected_stocks)
         # Advance condiction
+        selected_stocks = self.breakAvgsAdv(selected_stocks)
+        self.selected_stocks = self.avg120TrendUpAdv(selected_stocks)
+        self.logger.info('符合追涨条件股票%d个' % len(self.selected_stocks))
         return self.selected_stocks
 
     def periodCheck(self, stocks):
@@ -263,6 +265,18 @@ class SelChaseRise(SelBase):
             if close_prices[-1] > avg60[-1] or close_prices[-1] > avg30[-1] or close_prices[-1] > avg20[-1]:
                 selected_stocks.append(stock)
                 self.logger.debug('选出突破中期均线的股票%s' % stock)
+        return selected_stocks
+
+    def avg120TrendUpAdv(self, stocks):
+        # 120日均线，趋势向上
+        selected_stocks = []
+        for stock in stocks:
+            close_prices = history_bars(stock, self.load_period, '1d', 'close')
+            avg120 = talib.MA(close_prices, timeperiod=120,matype=0)
+            # 选出日前3天120日均线趋势向上
+            if avg120[-1] > avg120[-2] and avg120[-2] > avg120[-3]:
+                selected_stocks.append(stock)
+                self.logger.debug('选出120日均线趋势向上的股票%s' % stock)
         return selected_stocks
 
 

@@ -1,4 +1,5 @@
 from rqalpha.api.api_base import history_bars
+from rqalpha.api.api_base import get_trading_dates
 from rightTradeModel.common.utility import Utility
 import logging
 import pdb
@@ -70,7 +71,8 @@ class CostZone:
                 sell_stocks.append(stock)
             else:
                 buy_date = sc_dict[stock][0]
-                hold_days = (today - buy_date).days + 1
+                #hold_days = (today - buy_date).days + 1
+                hold_days = len(get_trading_dates(buy_date, today))
                 if hold_days >= self.max_hold_days:
                     force_close.append(stock)
         return sell_stocks,force_close
@@ -143,6 +145,7 @@ class BuyButtom:
         for stock in stocks:
             opens = history_bars(stock, self.period, '1d', 'open')
             close = history_bars(stock, self.period, '1d', 'close')
+            # 涨幅 = (now - past) / past 
             incr_rate = (close[-1] - close[-2]) / close[-2]
             if incr_rate > rise_threshold:
                 # 盘中涨幅超过4%
@@ -167,10 +170,11 @@ class BuyRise():
         self.period = 5
 
     def search(self, stocks):
-        bro_stocks = self.bigRiseOpen(stocks)
+        #bro_stocks = self.bigRiseOpen(stocks)
         bfo_stocks = self.bigFallOpen(stocks)
         sro_stocks = self.smallRiseOpen(stocks)
-        return list(set(bro_stocks + bfo_stocks + sro_stocks))
+        #return list(set(bro_stocks + bfo_stocks + sro_stocks))
+        return list(set(bfo_stocks + sro_stocks))
     
     def bigRiseOpen(self, stocks):
         # 大幅高开，直接追
@@ -213,7 +217,7 @@ class BuyRise():
             # increase_rate = (now - past) / past
             open_rate = (opens[-1] - close[-2]) / close[-2]
             if open_rate < rise_threshold and open_rate > 0:
-                if lows[-1] <= opens[-1]:
+                if lows[-1] <= close[-2]:
                     # 回补日内缺口
                     buy_stocks.append(stock)
         return buy_stocks

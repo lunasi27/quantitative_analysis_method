@@ -22,29 +22,45 @@ class TradeSystem:
         self.logger.info('===<股市收盘，开始选股>===')
         self.stockSel.run(stocks)
 
-    def trade(self, today):
+    def trade(self, context, bar_dict):
         # 交易
-        self.logger.info('当前日期：%s' % today)
+        self.logger.info('当前日期：%s' % context.now)
+        # 将当天的日期传入交易规则处理类
+        self.tradRuls.today = context.now
         self.logger.info('===<股票开市，开始交易>===')
-        self.tradRuls.today = today
-        # 取到目前可以卖出的股票列表
-        self.readSellCandidate()
+        # 获取并过滤目前可以卖出的股票
+        self.filterSellCandidate(bar_dict)
         # 执行条件卖出
         sell_dict = self.tradRuls.sell()
-        self.writeSellStocks(sell_dict, today)
+        self.writeSellStocks(sell_dict, context.now)
+        # 过滤目前可以买入的股票
+        self.filterBuyCandidate(bar_dict)
         # 执行条件买入
         buy_dict = self.tradRuls.buy(self.stockSel)
-        self.writeBuyStocks(buy_dict, today)
+        self.writeBuyStocks(buy_dict, context.now)
     
     def posit(self):
         # 仓位
         pass
 
-    def readSellCandidate(self):
+    def filterSellCandidate(self, bar_dict):
         # 从数据库获取候选股票的买入信息
-        self.tradRuls.sell_candidate = self.db.findOpenTradePairs()
+        sell_candidate = self.db.findOpenTradePairs()
+        for stock in list(sell_candidate.keys()):
+            if bar_dict[stock].suspended:
+                sell_candidate.pop(stock)
+        self.tradRuls.sell_candidate = sell_candidate
+        #self.tradRuls.bar_dict = bar_dict
         # sell_candidate = {<stock>:(<buy_date>,<buy_price>), ...}
         self.logger.info('找到%d只股票，处于持仓状态' % len(self.tradRuls.sell_candidate))
+
+    def filterBuyCandidate(self, bar_dict):
+        # 过滤当天停盘的股票
+        buy_list = [self.stockSel.sbb_stocks, self.stockSel.scr_stocks, self.stockSel.ssb_stocks]
+        for stocks in buy_list:
+            for stock in stocks:
+                if bar_dict[stock].suspended:
+                    stocks.remove(stock)
 
     def writeSellStocks(self, sell_dict, today):
         position_type = '短线'
