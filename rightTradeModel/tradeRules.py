@@ -1,4 +1,5 @@
 from rqalpha.api.api_base import history_bars
+from rightTradeModel.common.utility import Utility
 import logging
 import pdb
 
@@ -23,7 +24,7 @@ class TradeRules:
 
     def sell(self):
         # 成本区检测，处于成本区的持仓不做止盈止损判断
-        sell_stocks,force_close = self.czck.search(self.sell_candidate, self.today)
+        sell_stocks,force_close,sell_board = self.czck.search(self.sell_candidate, self.today)
         # 止盈策略
         sell_peak_draw_back = self.spdb.search(sell_stocks, self.sell_candidate, self.today)
         # 剔除上一步已经选出的股票
@@ -31,11 +32,9 @@ class TradeRules:
         # 止损策略
         sell_stop_loss_stocks = self.stls.search(sell_stocks, self.sell_candidate)
         # 返回挑选出的将要卖出的股票信息
-        return {'峰值回撤': sell_peak_draw_back, '固定止损': sell_stop_loss_stocks, '强制平仓': force_close}
+        return {'峰值回撤': sell_peak_draw_back, '固定止损': sell_stop_loss_stocks, '强制平仓': force_close, '打板止盈': sell_board}
 
     def buy(self, stock_selector):
-        # 获取依然还在持仓的股票，已经持仓的股票就不再买入了（补仓情况另行考虑）
-        #hold_stocks = self.db.searchSellCandidate()
         # 抄底买入条件判断
         bb_stocks = self.bbtn.search(stock_selector.sbb_stocks)
         # 追涨买入条件判断
@@ -52,6 +51,13 @@ class CostZone:
         self.max_hold_days = 5
 
     def search(self, sc_dict, today):
+        # 优先处理打板股票
+        sell_board = self.seekBoardCheck(sc_dict)
+        # 检查成本区
+        sell_stocks,force_close = self.costZoneCheck(sc_dict, today)
+        return sell_stocks,force_close,sell_board
+    
+    def costZoneCheck(self, sc_dict, today):
         sell_stocks = []
         force_close = []
         for stock in sc_dict.keys():
@@ -68,6 +74,20 @@ class CostZone:
                 if hold_days >= self.max_hold_days:
                     force_close.append(stock)
         return sell_stocks,force_close
+
+    def seekBoardCheck(self, sc_dict):
+        # 涨停卖出规则：买入条件为打板时，只要不能连续涨停就卖出
+        sell_stocks = []
+        for stock in sc_dict.keys():
+            close = history_bars(stock, 5, '1d', 'close')
+            buy_reason = sc_dict[stock][2]
+            if buy_reason == '打板' \
+               and not Utility.isRiseStopNow(close):
+                sell_stocks.append(stock)
+        # 从可卖股票中删除打板股票，以免对后续处理造成影响
+        for stock in sell_stocks:
+            sc_dict.pop(stock)
+        return sell_stocks
 
 class PeakdrawBack:
     # 卖出规则：峰值回撤

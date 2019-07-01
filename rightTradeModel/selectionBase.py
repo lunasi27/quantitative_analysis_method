@@ -54,6 +54,7 @@ class SelBuyButtom(SelBase):
         selected_stocks = self.deviateAvgCheck(selected_stocks)
         selected_stocks = self.rsiCheck(selected_stocks)
         selected_stocks = self.fallStopCheck(selected_stocks)
+        selected_stocks = self.volShrinkCheck(selected_stocks)
         # 进阶抄底规则
         if len(selected_stocks) > 30:
             self.logger.info('选出抄底股票超过30个，启动优化条件')
@@ -135,6 +136,16 @@ class SelBuyButtom(SelBase):
                 self.logger.debug('%s股票一月内存在连续跌停，剔除' % stock)
         return selected_stocks
     
+    def volShrinkCheck(self, stocks):
+        check_period = 3
+        selected_stocks = []
+        for stock in stocks:
+            close_prices = history_bars(stock, check_period+1, '1d', 'volume')
+            if Utility.isabsoluteDesc(close_prices[:-1]):
+                selected_stocks.append(stock)
+                self.logger.debug('%s股票选出日前连续3天缩量下跌' % stock)
+        return selected_stocks
+
     def bollCheckAdv(self, stocks):
         check_period = 100
         selected_stocks = []
@@ -191,7 +202,10 @@ class SelChaseRise(SelBase):
         check_period = 10
         selected_stocks = []
         for stock in stocks:
+            high_prices = history_bars(stock, check_period+1, '1d', 'high')
             close_prices = history_bars(stock, check_period+1, '1d', 'close')
+            # 不强求收盘价等于最高价，但要求收盘价高于9.95%
+            # close_prices[-1] == high_prices[-1]
             if Utility.isRiseStopNow(close_prices) \
                and not Utility.isContinueRiseStop(close_prices, max_co_present=2):
                     selected_stocks.append(stock)

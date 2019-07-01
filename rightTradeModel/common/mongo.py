@@ -54,9 +54,9 @@ class TradeDB:
         value = {'$set': trade_data}
         self.collection.update_one(query, value)
 
-    def findOpenTradePairs(self):   
+    def findOpenTradePairs(self):
         results = self.collection.find({'sell_price': {'$exists': False}})
-        sell_candidate = {item['stock']: (item['buy_time'], item['buy_price']) for item in results}
+        sell_candidate = {item['stock']: (item['buy_time'], item['buy_price'], item['buy_reason']) for item in results}
         return sell_candidate
 
 
