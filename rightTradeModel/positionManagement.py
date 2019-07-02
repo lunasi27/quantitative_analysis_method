@@ -20,6 +20,10 @@ class PositionManagement:
         # 高风险/低风险
         self.mt.search(stocks)
 
+    def asdasd(self):
+        # 投资偏好，创业板/主板/中小板
+        # 投资偏好，题材板块，稀土/5G/...
+
 
 
 class MarketType:
