@@ -206,9 +206,9 @@ class SelChaseRise(SelBase):
         for stock in stocks:
             high_prices = history_bars(stock, check_period+1, '1d', 'high')
             close_prices = history_bars(stock, check_period+1, '1d', 'close')
-            # 不强求收盘价等于最高价，但要求收盘价高于9.95%
-            # close_prices[-1] == high_prices[-1]
+            # 要求收盘价等于最高价，但要求收盘价高于9.95%
             if Utility.isRiseStopNow(close_prices) \
+               and close_prices[-1] == high_prices[-1] \
                and not Utility.isContinueRiseStop(close_prices, max_co_present=2):
                     selected_stocks.append(stock)
                     self.logger.debug('选出当日涨停，且不连续涨停的股票%s' % stock)
@@ -261,20 +261,22 @@ class SelChaseRise(SelBase):
             avg20 = talib.MA(close_prices, timeperiod=20,matype=0)
             avg30 = talib.MA(close_prices, timeperiod=30,matype=0)
             avg60 = talib.MA(close_prices, timeperiod=60,matype=0)
-            # 选出三天中期均线中离昨天收盘价最近的数据（且中期均线必须小于收盘价）。
-            if close_prices[-1] > avg60[-1] or close_prices[-1] > avg30[-1] or close_prices[-1] > avg20[-1]:
+            # 选出三条中期均线中离昨天收盘价最近的数据（且中期均线必须小于收盘价）。
+            if (close_prices[-1] > avg60[-1] and close_prices[-2] < avg60[-2]) \
+                or (close_prices[-1] > avg30[-1] and close_prices[-2] < avg30[-2]) \
+                or (close_prices[-1] > avg20[-1] and close_prices[-2] > avg20[-2]):
                 selected_stocks.append(stock)
                 self.logger.debug('选出突破中期均线的股票%s' % stock)
         return selected_stocks
 
     def avg120TrendUpAdv(self, stocks):
-        # 120日均线，趋势向上
+        # 250日均线，趋势向上
         selected_stocks = []
         for stock in stocks:
-            close_prices = history_bars(stock, self.load_period, '1d', 'close')
-            avg120 = talib.MA(close_prices, timeperiod=120,matype=0)
+            close_prices = history_bars(stock, self.load_period+3, '1d', 'close')
+            avg250 = talib.MA(close_prices, timeperiod=250,matype=0)
             # 选出日前3天120日均线趋势向上
-            if avg120[-1] > avg120[-2] and avg120[-2] > avg120[-3]:
+            if avg250[-1] > avg250[-2] and avg250[-2] > avg250[-3]:
                 selected_stocks.append(stock)
                 self.logger.debug('选出120日均线趋势向上的股票%s' % stock)
         return selected_stocks

@@ -56,10 +56,51 @@ class TradeDB:
 
     def findOpenTradePairs(self):
         results = self.collection.find({'sell_price': {'$exists': False}})
-        sell_candidate = {item['stock']: (item['buy_time'], item['buy_price'], item['buy_reason']) for item in results}
+        sell_candidate = {item['stock']: (item['buy_time'], item['buy_price'], item['buy_reason'],
+                          item['position_num']) for item in results}
         return sell_candidate
 
 
+class SelectionDB:
+    def __init__(self):
+        client = pymongo.MongoClient(host='localhost', port=27017)
+        db = client.test
+        self.collection = db.select
+
+    def insertSelectData(self, stock, sel_reason, sel_time):
+        select_data = {
+            'stock': stock,
+            # 'sel_price': sel_price,
+            'sel_reason': sel_reason,
+            'sel_time': sel_time
+        }
+        self.collection.insert_one(select_data)
+
+    def updateSelectStat(self, stock):
+        # 被选中的股票会被标上买入
+        query = {'status': {'$exists': False}, 'stock': stock}
+        select_data = {
+            'status': 'buy-in',
+        }
+        value = {'$set': select_data}
+        self.collection.update_one(query, value)
+
+    def markExpired(self, cur_time):
+        # 超过5天的股票自动被标上过期
+        cur_time -= datetime.timedelta(days=5)
+        query = {'status': {'$exists': False}, 'sel_time': {'$lt': cur_time}}
+        select_data = {
+            'status': 'expired',
+        }
+        value = {'$set': select_data}
+        self.collection.update_one(query, value)
+
+    def findSelectData(self, cur_time):
+        # 找出目前潜在的可买股票
+        self.markExpired(cur_time)
+        results = self.collection.find({'status': {'$exists': False}})
+        sell_candidate = {item['stock']: item['sel_reason'] for item in results}
+        return sell_candidate
 
 if __name__ == '__main__':
     data_list = [{'stock':'1', 'buy_price': 1, 'sell_price': 2, 'buy_reason': '抄底', 'sell_reason': '峰值回撤', 
