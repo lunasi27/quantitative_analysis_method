@@ -87,7 +87,7 @@ class PositionManagement:
                 # 计划将资金分为50份，一份一份买入
                 stat = order_value(stock, piece)
                 print('买入操作: %s' % stat)
-                if stat.status == ORDER_STATUS.FILLED:
+                if (stat is not None) and (stat.status == ORDER_STATUS.FILLED):
                     # 只有买成功了才返回值
                     return stat
                 else:
