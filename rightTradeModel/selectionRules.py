@@ -9,7 +9,7 @@ import talib
 
 import pdb
 
-class SelBase:
+class SelectionRuleBase:
     def __init__(self):
         self.logger = logging.getLogger('Selection_Logger')
         self.selected_stocks = []
@@ -39,7 +39,7 @@ class SelBase:
         return selected_stocks
 
 
-class SelBuyButtom(SelBase):
+class SelBuyButtom(SelectionRuleBase):
     # 抄底选股算法
     def __init__(self):
         super(SelBuyButtom, self).__init__()
@@ -159,7 +159,7 @@ class SelBuyButtom(SelBase):
         return selected_stocks
 
 
-class SelChaseRise(SelBase):
+class SelChaseRise(SelectionRuleBase):
     def __init__(self):
         super(SelChaseRise, self).__init__()
         self.rsi_period = 14
@@ -282,7 +282,7 @@ class SelChaseRise(SelBase):
         return selected_stocks
 
 
-class SelSeekBoard(SelBase):
+class SelSeekBoard(SelectionRuleBase):
     def __init__(self):
         super(SelSeekBoard, self).__init__()
 

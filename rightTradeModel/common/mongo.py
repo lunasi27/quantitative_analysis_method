@@ -95,12 +95,13 @@ class SelectionDB:
         value = {'$set': select_data}
         self.collection.update_one(query, value)
 
-    def findSelectData(self, cur_time):
+    def findSelectStock(self, cur_time):
         # 找出目前潜在的可买股票
         self.markExpired(cur_time)
         results = self.collection.find({'status': {'$exists': False}})
         sell_candidate = {item['stock']: item['sel_reason'] for item in results}
         return sell_candidate
+
 
 if __name__ == '__main__':
     data_list = [{'stock':'1', 'buy_price': 1, 'sell_price': 2, 'buy_reason': '抄底', 'sell_reason': '峰值回撤', 

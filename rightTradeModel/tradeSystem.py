@@ -1,6 +1,6 @@
 from rightTradeModel.stockSelection import StockSelection
 from rightTradeModel.tradeRules import TradeRules
-from rightTradeModel.common.mongo import TradeDB
+from rightTradeModel.common.mongo import SelectionDB,TradeDB
 # 只是为了取得卖出买入价格，这个可以后面考虑一下，要不要放在这里
 from rqalpha.api.api_base import history_bars
 import logging
@@ -13,12 +13,13 @@ class TradeSystem:
         self.stockSel = StockSelection()
         self.tradRuls = TradeRules()
         # 初始化数据路连接
-        self.db = TradeDB()
+        self.sdb = SelectionDB()
+        self.tdb = TradeDB()
 
-    def select(self, stocks, context):
+    def select(self, context):
         # 选股
         self.logger.info('===<股市收盘，开始选股>===')
-        self.stockSel.run(stocks, context)
+        self.stockSel.run(context)
 
     def trade(self, context, bar_dict):
         # 交易
@@ -36,7 +37,7 @@ class TradeSystem:
     
     def getSellCandidate(self):
         # 从数据库获取候选股票的买入信息
-        sell_candidate = self.db.findOpenTradePairs()
+        sell_candidate = self.tdb.findOpenTradePairs()
         # sell_candidate = {<stock>:(<buy_date>,<buy_price>), ...}
         self.logger.info('找到%d只股票，处于持仓状态' % len(sell_candidate))
         return sell_candidate
@@ -48,14 +49,14 @@ class TradeSystem:
             for stock in sell_dict[sell_reason]:
                 sell_price = history_bars(stock, 1, '1d', 'close')[-1]
                 # 仓位卖出条件应该处于这个位置
-                self.db.insertSellData(stock, sell_price, sell_reason, position_type, today)
+                self.tdb.insertSellData(stock, sell_price, sell_reason, position_type, today)
                 self.logger.debug('%s卖出股票%s, 价格%f' % (sell_reason, stock, sell_price))
             self.logger.info('%s卖出%d支股票' % (sell_reason, len(sell_dict[sell_reason])))
 
     def writeBuyStocks(self, buy_dict, today):
         position_type = '短线'
         # 找到所有持仓股票
-        hold_stocks = self.db.findOpenTradePairs()
+        hold_stocks = self.tdb.findOpenTradePairs()
         # 将即将买入股票的信息写入数据库
         for buy_reason in buy_dict.keys():
             for stock in buy_dict[buy_reason]:
@@ -68,7 +69,7 @@ class TradeSystem:
                     continue
                 buy_price = history_bars(stock, 1, '1d', 'close')[-1]
                 # 仓位买入条件应该处于这个位置
-                self.db.insertBuyData(stock, buy_price, buy_reason, position_type, 0, '测试阶段', today)
+                self.tdb.insertBuyData(stock, buy_price, buy_reason, position_type, 0, '测试阶段', today)
                 self.logger.debug('%s买入股票%s, 价格%f' % (buy_reason, stock, buy_price))
             self.logger.info('%s买入%d支股票' % (buy_reason, len(buy_dict[buy_reason])))
 
