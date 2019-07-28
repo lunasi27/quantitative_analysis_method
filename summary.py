@@ -1,7 +1,7 @@
-from rightTradeModel.common.mongo import TradeDB
+from rightTradeModel.common.mongo import TradingDB
 import pdb
 
-class ReadData(TradeDB):
+class ReadData(TradingDB):
     def __init__(self):
         super(ReadData, self).__init__()
 

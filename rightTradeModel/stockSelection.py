@@ -1,6 +1,6 @@
-from rightTradeModel.selectionBase import SelBuyButtom
-from rightTradeModel.selectionBase import SelChaseRise
-from rightTradeModel.selectionBase import SelSeekBoard
+from rightTradeModel.selectionRules import SelBuyButtom
+from rightTradeModel.selectionRules import SelChaseRise
+from rightTradeModel.selectionRules import SelSeekBoard
 from rightTradeModel.common.mongo import SelectionDB
 from rqalpha.api.api_base import all_instruments
 import pdb
@@ -28,9 +28,9 @@ class StockSelection:
         scr_stocks = list(set(scr_stocks) - set(ssb_stocks))
         return sbb_stocks, scr_stocks, ssb_stocks
     
-    def saveSelection(self, stocks, reason, cur_time):
+    def saveSelection(self, stocks, reason, today):
         for stock in stocks:
-            self.seldb.insertSelectData(stock, reason, cur_time)
+            self.seldb.insertSelectData(stock, reason, today)
 
     def run(self, context):
         stocks = self.getStocks()
@@ -47,7 +47,7 @@ class StockSelection:
         self.saveSelection(self.sbb_stocks, '抄底', context.now)
         self.saveSelection(self.scr_stocks, '追涨', context.now)
         self.saveSelection(self.ssb_stocks, '打板', context.now)
-        # 检查过期的股票（选出后5天依然不符合买入条件的股票，可以直接丢弃）
-        self.seldb.markExpired(context.now)
+        # 检查过期股票的操作，被转移到买入之前，这种选择更合理
+        # self.seldb.markExpired(context.now)
 
 

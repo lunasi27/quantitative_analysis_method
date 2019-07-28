@@ -1,5 +1,5 @@
 import pymongo
-from datetime import datetime
+from datetime import timedelta,datetime,time
 import pdb
 
 # class TradeData(Document):
@@ -25,13 +25,14 @@ import pdb
 #     market_type = StringField(max_legth=30, required=True)
 
 
-class TradeDB:
+class TradingDB:
     def __init__(self):
         client = pymongo.MongoClient(host='localhost', port=27017)
         db = client.test
         self.collection = db.trade
     
     def insertBuyData(self, stock, buy_price, buy_reason, position_type, position_num, market_type, buy_time):
+        # 插入买入的股票信息
         trade_data = {
             'stock': stock,
             'buy_price': buy_price,
@@ -44,6 +45,7 @@ class TradeDB:
         self.collection.insert_one(trade_data)
     
     def insertSellData(self, stock, sell_price, sell_reason, position_type, sell_time):
+        # 更新卖出股票的信息
         trade_data = {
             'sell_price': sell_price,
             'sell_reason': sell_reason,
@@ -54,7 +56,8 @@ class TradeDB:
         value = {'$set': trade_data}
         self.collection.update_one(query, value)
 
-    def findOpenTradePairs(self):
+    def getHoldStocks(self):
+        # 查找可卖出的股票
         results = self.collection.find({'sell_price': {'$exists': False}})
         sell_candidate = {item['stock']: (item['buy_time'], item['buy_price'], item['buy_reason'],
                           item['position_num']) for item in results}
@@ -68,16 +71,22 @@ class SelectionDB:
         self.collection = db.select
 
     def insertSelectData(self, stock, sel_reason, sel_time):
-        select_data = {
-            'stock': stock,
-            # 'sel_price': sel_price,
-            'sel_reason': sel_reason,
-            'sel_time': sel_time
-        }
-        self.collection.insert_one(select_data)
+        # 在写入数据库前，先判断当前的股票是否在5天前被选出
+        query = {'status': {'$exists': False}, 'stock': stock}
+        result = self.collection.find_one(query)
+        if result is None:
+            # 如果是新股票，则直接写入数据
+            # 如果是之前被选出的股票，则跳过不处理（如果一直不被买入，则会标为过期）
+            select_data = {
+                'stock': stock,
+                # 'sel_price': sel_price,
+                'sel_reason': sel_reason,
+                'sel_time': sel_time
+            }
+            self.collection.insert_one(select_data)
 
     def updateSelectStat(self, stock):
-        # 被选中的股票会被标上买入
+        # 被选中交易的股票会被标上买入
         query = {'status': {'$exists': False}, 'stock': stock}
         select_data = {
             'status': 'buy-in',
@@ -85,9 +94,25 @@ class SelectionDB:
         value = {'$set': select_data}
         self.collection.update_one(query, value)
 
+    def getSelectStocks(self, today):
+        sell_candidate = {}
+        self.markExpired(today)
+        # 找出目前潜在的可买股票
+        results = self.collection.find({'status': {'$exists': False}})
+        # sell_candidate = {item['stock']: item['sel_reason'] for item in results}
+        # 输出格式为 sell_candidate = {'抄底': ['000546.XSHE', '300223.XSHE', ...], '追涨':['601116.XSHG', '300308.XSHE', ...], ...}
+        for item in results:
+            reason = item['sel_reason']
+            stock = item['stock']
+            if reason in sell_candidate:
+                sell_candidate[reason].append(stock)
+            else:
+                sell_candidate[reason] = [stock]
+        return sell_candidate
+
     def markExpired(self, cur_time):
         # 超过5天的股票自动被标上过期
-        cur_time -= datetime.timedelta(days=5)
+        cur_time -= timedelta(days=5)
         query = {'status': {'$exists': False}, 'sel_time': {'$lt': cur_time}}
         select_data = {
             'status': 'expired',
@@ -95,12 +120,33 @@ class SelectionDB:
         value = {'$set': select_data}
         self.collection.update_one(query, value)
 
-    def findSelectStock(self, cur_time):
-        # 找出目前潜在的可买股票
-        self.markExpired(cur_time)
-        results = self.collection.find({'status': {'$exists': False}})
-        sell_candidate = {item['stock']: item['sel_reason'] for item in results}
-        return sell_candidate
+class PositionDB:
+    def __init__(self):
+        client = pymongo.MongoClient(host='localhost', port=27017)
+        db = client.test
+        self.collection = db.position
+
+    def insertPosition(self, m_type, position, buy_point, p_time):
+        # 插入盘前分析出的持仓策略
+        position_data = {
+            'market_type': m_type,
+            'position': position,
+            'buy_point_sh': buy_point[0],
+            'buy_point_sz': buy_point[1],
+            'pos_time': p_time
+        }
+        self.collection.insert_one(position_data)
+    
+    def getPosition(self, p_time):
+        # 这里的时间需要注意一下，因为是开盘前计算仓位，所以存入时间是0，取出时需要注意。
+        # datetime.combine(p_time.date(), time(0))
+        query = {'pos_time': datetime.combine(p_time.date(), time(0))}
+        result = self.collection.find_one(query)
+        # result = {'market_type': m_type, 'position': position,
+        #           'buy_point_sh': buy_point[0], 'buy_point_sz': buy_point[1],
+        #           'pos_time': p_time}
+        return result
+
 
 
 if __name__ == '__main__':

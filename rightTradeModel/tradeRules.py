@@ -11,11 +11,9 @@ class CostZone:
         self.max_hold_days = 5
 
     def search(self, sc_dict, today):
-        # 优先处理打板股票
-        sell_board = self.seekBoardCheck(sc_dict)
         # 检查成本区
         sell_stocks,force_close,keep_cost_zone = self.costZoneCheck(sc_dict, today)
-        return sell_stocks,force_close,keep_cost_zone,sell_board
+        return sell_stocks,force_close,keep_cost_zone
     
     def costZoneCheck(self, sc_dict, today):
         sell_stocks = []
@@ -31,22 +29,33 @@ class CostZone:
                chg_rate < -self.const_zone_threshold:
                 sell_stocks.append(stock)
             else:
-            # 如果持股天数超过5天，就强制卖出
+                # 如果持股天数超过5天, 且还在成本区，就强制卖出
                 buy_date = sc_dict[stock][0]
                 #hold_days = (today - buy_date).days + 1
                 hold_days = len(get_trading_dates(buy_date, today))
                 if hold_days >= self.max_hold_days:
                     force_close.append(stock)
                 else:
-            # 剩下的就是还留在成本区的股票
+                    # 剩下的就是还留在成本区的股票
                     keep_cost_zone.append(stock)
         return sell_stocks,force_close,keep_cost_zone
+
+
+class ContinueBoard:
+    def __init__(self):
+        # 卖出规则：对于追涨的股票，如果不能持续涨停，则在开板日尾盘卖出
+        self.period = 5
+
+    def search(self, sc_dict):
+        # 处理打板股票
+        sell_board = self.seekBoardCheck(sc_dict)
+        return sell_board
 
     def seekBoardCheck(self, sc_dict):
         # 涨停卖出规则：买入条件为打板时，只要不能连续涨停就卖出
         sell_stocks = []
         for stock in sc_dict.keys():
-            close = history_bars(stock, 5, '1d', 'close')
+            close = history_bars(stock, self.period, '1d', 'close')
             buy_reason = sc_dict[stock][2]
             if buy_reason == '打板' \
                and not Utility.isRiseStopNow(close):
@@ -55,6 +64,7 @@ class CostZone:
         for stock in sell_stocks:
             sc_dict.pop(stock)
         return sell_stocks
+
 
 class PeakdrawBack:
     # 卖出规则：峰值回撤

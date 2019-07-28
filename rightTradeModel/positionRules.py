@@ -1,103 +1,9 @@
-from rqalpha.mod.rqalpha_mod_sys_accounts.api.api_stock import order_target_percent
-from rqalpha.mod.rqalpha_mod_sys_accounts.api.api_stock import order_value
+
 from rqalpha.api.api_base import history_bars
 import talib
 import numpy as np
 import pdb
-from rqalpha.const import ORDER_STATUS
 
-
-class PositionManagement:
-    def __init__(self):
-        self.mrisk = MarketRisk()
-        self.mtrend = MarketTrend()
-
-    def getPositionPeriod(self):
-        # 长线/中线/短线
-        print('getPositionPeriod')
-        pass
-
-    def checkMarketMode(self):
-        # 仓位控制
-        # 牛市：    70~100%
-        # 熊市：    0~40%
-        # 牛皮市:   40~70%
-        if self.mtrend.isSHZTrendUp() and self.mtrend.isSZCTrendUp():
-            print('牛市, 70%~100%仓位')
-            return 1
-        elif not self.mtrend.isSHZTrendUp() and not self.mtrend.isSZCTrendUp():
-            print('熊市, 0%~40%仓位')
-            return 0.4
-        else:
-            print('牛皮市, 40%~70%仓位')
-            return 0.7
-
-    def riskAnalysis(self, stocks):
-        # 高风险/低风险
-        # return self.mrisk.search(stocks)
-        self.mtrend.isSHZTrendUp()
-        self.mtrend.isSZCTrendUp()
-        self.mtrend.isSCYTrendUp()
-
-    def asdasd(self):
-        pass
-        # 投资偏好，创业板/主板/中小板
-        # 投资偏好，题材板块，稀土/5G/...
-
-
-# class Position:
-#     # 仓位控制
-    # def __init__(self):
-    #     pass
-
-    def sellExec(self, stock):
-        # 正常情况下，清仓卖出股票
-        stat = order_target_percent(stock, 0)
-        if stat.status == ORDER_STATUS.FILLED:
-            return stat
-        else:
-            return False
-    
-    def isPositionExceed(self, context):
-        # 获取仓位信息
-        market_value = context.stock_account.market_value
-        total_value = context.stock_account.total_value
-        # cash = context.stock_account.cash
-        position_rate = market_value / total_value
-        if position_rate >= self.checkMarketMode():
-            # 仓位超限，需要额外减仓
-            # 第一步，清空成本区中的股票
-            # 第二步，止盈收益最低的股票(这个需要测试)
-            return True 
-            
-        else:
-            return False
-
-    def buyExec(self, stock, context):
-        # 获取仓位信息
-        market_value = context.stock_account.market_value
-        total_value = context.stock_account.total_value
-        cash = context.stock_account.cash
-        position_rate = market_value / total_value
-        # 检查部目前仓位是否符合仓位控制条件
-        if position_rate < self.checkMarketMode():
-            # 有可用仓位, 可用资金均分买入股票
-            piece = total_value // 50
-            if cash >= piece:
-                # 计划将资金分为50份，一份一份买入
-                stat = order_value(stock, piece)
-                print('买入操作: %s' % stat)
-                if (stat is not None) and (stat.status == ORDER_STATUS.FILLED):
-                    # 只有买成功了才返回值
-                    return stat
-                else:
-                    return False
-                # return order_value(stock, piece)
-            else:
-                return False
-        else:
-            # 无可用仓位， 不买
-            return False
 
 class MarketRisk:
     # 这个方法是用来检测股市的极端情况的，比如超跌/过热
@@ -215,3 +121,39 @@ class MarketTrend:
             # print('创业板指处于：空头趋势')
             return False
         pass
+
+
+class MarketBuyPoint:
+    def __init__(self):
+        # 从大盘出发，分析买点：没有出现买点的时候不能买股
+        # 具体思路：
+        # 1，上证大盘偏离5日线2%，就可以买上证股
+        # 2，深成大盘偏离5日线5%，就可以买深圳股
+        self.period = 250
+        pass
+    
+    def buyPointCheck(self):
+        sh_idx = '000001.XSHG'
+        # 检查上证指数是否存在买点
+        sh_stat = self.deviateAvgCheck(sh_idx, -0.02)
+        sz_idx = '399001.XSHE'
+        # 检查深成指数是否存在买点
+        sz_stat = self.deviateAvgCheck(sz_idx, -0.05)
+        return sh_stat, sz_stat
+
+    def deviateAvgCheck(self, market, deviate_threshold):
+        # 收盘价偏离5日线超过 x%
+        deviate_period = 5
+        # deviate_threshold = -0.02
+        market_close = history_bars(market, self.period, '1d', 'close')
+        close = market_close[-1]
+        close_ma = talib.MA(market_close, timeperiod=deviate_period)
+        avg5 = close_ma[-1]
+        deviate_idx = (close - avg5) / avg5
+        if deviate_idx <= deviate_threshold:
+            # self.logger.debug('%s股价偏离中期均线超过%d'% (stock, deviate_idx*100))
+            # 触发买点，你可以买股票了
+            return True
+        else:
+            # 还没有触发买点，你还得继续憋着
+            return False
