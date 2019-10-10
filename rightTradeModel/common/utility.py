@@ -1,12 +1,13 @@
 import numpy as np
-import pdb
+# import pdb
+
 
 class Utility:
     @staticmethod
     def calRatio(data):
         s1 = np.delete(data, 0, axis=0)
         s2 = np.delete(data, -1, axis=0)
-        return  (s1 - s2) / s2
+        return (s1-s2)/s2
 
     @staticmethod
     def isContinueRiseStop(prices, max_co_present):
@@ -21,7 +22,7 @@ class Utility:
             else:
                 continueCeiling = 0
         return False
-    
+
     @staticmethod
     def isRiseStopNow(prices):
         threshold = 0.095
@@ -44,7 +45,7 @@ class Utility:
             else:
                 continueFloor = 0
         return False
-    
+
     @staticmethod
     def isFallStopNow(prices):
         threshold = -0.095
@@ -59,7 +60,7 @@ class Utility:
         flag = data[0]
         for val in data[1:]:
             if val < flag:
-               flag = val
+                flag = val
             else:
                 return False
         return True
@@ -69,24 +70,40 @@ class Utility:
         flag = data[0]
         for val in data[1:]:
             if val > flag:
-               flag = val
+                flag = val
             else:
                 return False
         return True
 
     @staticmethod
     def isDescTrend(prices):
-        pass 
+        pass
 
     @staticmethod
     def isIncrTrend(prices):
         pass
 
+    @staticmethod
+    def isSHZstock(stock):
+        _, market = stock.split('.')
+        if market == 'XSHG':
+            return True
+        else:
+            return False
+
+    @staticmethod
+    def isSZCstock(stock):
+        _, market = stock.split('.')
+        if market == 'XSHE':
+            return True
+        else:
+            return False
+
 
 if __name__ == '__main__':
-    data = [23.7 , 23.78, 23.72, 23.96, 23.9 , 23.85, 23.81, 23.72, 23.75,
-       23.7 , 23.72, 23.49, 23.5 , 23.53, 23.38, 22.82, 20.54, 18.49,
-       16.64, 17.55, 15.8]
-    
+    data = [23.7, 23.78, 23.72, 23.96, 23.9, 23.85, 23.81, 23.72, 23.75,
+            23.7, 23.72, 23.49, 23.5, 23.53, 23.38, 22.82, 20.54, 18.49,
+            16.64, 17.55, 15.8]
+
     data = Utility.checkContinueFloor(data, 4)
     print(data)

@@ -1,23 +1,25 @@
 from rqalpha.api.api_base import history_bars
-from rqalpha.api.api_base import get_next_trading_date
+# from rqalpha.api.api_base import get_next_trading_date
 from rqalpha.mod.rqalpha_mod_sys_accounts.api.api_stock import is_st_stock
-from rqalpha.api.api_base import instruments 
+from rqalpha.api.api_base import instruments
 from rightTradeModel.common.utility import Utility
-import numpy as np
+# import numpy as np
 import logging
 import talib
-
 import pdb
+
 
 class SelectionRuleBase:
     def __init__(self):
         self.logger = logging.getLogger('Selection_Logger')
         self.selected_stocks = []
-    
+        # 这个字典用来存储额外的股票选取信息，例如选股的价格
+        self.select_info = {}
+
     def search(self, stocks):
         # 在基类中直接过滤掉ST股票
         self.stocks = self.filterST(stocks)
-    
+
     def filterST(self, stocks):
         # ST股票不在分析的范围内
         selected_stocks = []
@@ -28,7 +30,7 @@ class SelectionRuleBase:
 
     def periodCheck(self, stocks):
         # 股票上市小于一个月的，不分析
-        one_month =20
+        one_month = 20
         selected_stocks = []
         for stock in stocks:
             # 获取上市天数
@@ -37,6 +39,11 @@ class SelectionRuleBase:
                 selected_stocks.append(stock)
         self.logger.info('过滤新股后，剩余股票%s个' % len(selected_stocks))
         return selected_stocks
+
+    def recordSelPrice(self, stocks):
+        for stock in stocks:
+            close_prices = history_bars(stock, 1, '1d', 'close')
+            self.select_info[stock] = close_prices[0]
 
 
 class SelBuyButtom(SelectionRuleBase):
@@ -61,9 +68,11 @@ class SelBuyButtom(SelectionRuleBase):
             selected_stocks = self.rsiCheckAdv(selected_stocks)
             selected_stocks = self.deviateAvgCheckAdv(selected_stocks)
             selected_stocks = self.bollCheckAdv(selected_stocks)
+        # 记录股票的选出价格
+        self.recordSelPrice(selected_stocks)
         self.selected_stocks = selected_stocks
         self.logger.info('符合抄底条件股票%s个' % len(self.selected_stocks))
-        return self.selected_stocks
+        return self.selected_stocks, self.select_info
 
     def deviateAvgCheck(self, stocks):
         # 收盘价偏离20日线超过15%
@@ -75,7 +84,7 @@ class SelBuyButtom(SelectionRuleBase):
             close = stock_close[-1]
             close_ma = talib.MA(stock_close, timeperiod=deviate_period)
             avg20 = close_ma[-1]
-            #avg20 = sum(stock_close) / deviate_period
+            # avg20 = sum(stock_close) / deviate_period
             deviate_idx = (close - avg20) / avg20
             if deviate_idx < deviate_threshold:
                 selected_stocks.append(stock)
@@ -129,13 +138,13 @@ class SelBuyButtom(SelectionRuleBase):
         for stock in stocks:
             close_prices = history_bars(stock, check_period+1, '1d', 'close')
             if not (Utility.isContinueFallStop(close_prices, min_co_present=2)
-                    or 
+                    or
                     Utility.isFallStopNow(close_prices)):
                 selected_stocks.append(stock)
             else:
                 self.logger.debug('%s股票一月内存在连续跌停，剔除' % stock)
         return selected_stocks
-    
+
     def volShrinkCheck(self, stocks):
         check_period = 3
         selected_stocks = []
@@ -152,7 +161,7 @@ class SelBuyButtom(SelectionRuleBase):
         # 收盘价跌破下轨
         for stock in stocks:
             close_prices = history_bars(stock, check_period, '1d', 'close')
-            upper,middle,lower = talib.BBANDS(close_prices, timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)
+            upper, middle, lower = talib.BBANDS(close_prices, timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)
             if close_prices[-1] < lower[-1]:
                 selected_stocks.append(stock)
                 self.logger.debug('%s收盘跌破Boll线下轨' % stock)
@@ -160,6 +169,7 @@ class SelBuyButtom(SelectionRuleBase):
 
 
 class SelChaseRise(SelectionRuleBase):
+    # 追涨选股算法
     def __init__(self):
         super(SelChaseRise, self).__init__()
         self.rsi_period = 14
@@ -176,16 +186,18 @@ class SelChaseRise(SelectionRuleBase):
         selected_stocks = self.rsiCheck(selected_stocks)
         # Advance condiction
         selected_stocks = self.breakAvgsAdv(selected_stocks)
-        self.selected_stocks = self.avg120TrendUpAdv(selected_stocks)
+        # 这个条件太严格了，导致追涨算法很难被触发。
+        # selected_stocks = self.avg120TrendUpAdv(selected_stocks)
+        self.selected_stocks = selected_stocks
         self.logger.info('符合追涨条件股票%d个' % len(self.selected_stocks))
-        return self.selected_stocks
+        return self.selected_stocks, self.select_info
 
     def periodCheck(self, stocks):
         # 股票上市小于一年，且大于8个月的，不分析
         # 股票上市小于一个月的，不分析
         one_year = 250
         eight_month = 167
-        one_month =20
+        one_month = 20
         selected_stocks = []
         for stock in stocks:
             # 获取上市天数
@@ -198,7 +210,7 @@ class SelChaseRise(SelectionRuleBase):
                 selected_stocks.append(stock)
         self.logger.debug('过滤掉上市小于一个月或上市大于8个月且小于一年的股票，剩余%d只股票' % len(selected_stocks))
         return selected_stocks
-    
+
     def riseStopCheck(self, stocks):
         # 选出日涨停，且不是连续涨停
         check_period = 10
@@ -207,13 +219,12 @@ class SelChaseRise(SelectionRuleBase):
             high_prices = history_bars(stock, check_period+1, '1d', 'high')
             close_prices = history_bars(stock, check_period+1, '1d', 'close')
             # 要求收盘价等于最高价，但要求收盘价高于9.95%
-            if Utility.isRiseStopNow(close_prices) \
-               and close_prices[-1] == high_prices[-1] \
-               and not Utility.isContinueRiseStop(close_prices, max_co_present=2):
-                    selected_stocks.append(stock)
-                    self.logger.debug('选出当日涨停，且不连续涨停的股票%s' % stock)
+            if (Utility.isRiseStopNow(close_prices) and close_prices[-1] == high_prices[-1]
+                    and not Utility.isContinueRiseStop(close_prices, max_co_present=2)):
+                selected_stocks.append(stock)
+                self.logger.debug('选出当日涨停，且不连续涨停的股票%s' % stock)
         return selected_stocks
-        
+
     def riseRateCheck(self, stocks):
         # 过去10个交易日内，涨幅小于25%
         check_period = 10
@@ -254,27 +265,64 @@ class SelChaseRise(SelectionRuleBase):
         return selected_stocks
 
     def breakAvgsAdv(self, stocks):
-        # 突破中期均线
+        # 突破中期均线, 这个规则必须放在最后
         selected_stocks = []
         for stock in stocks:
+            # 突破标志位
+            break_through = None
             close_prices = history_bars(stock, self.load_period, '1d', 'close')
-            avg20 = talib.MA(close_prices, timeperiod=20,matype=0)
-            avg30 = talib.MA(close_prices, timeperiod=30,matype=0)
-            avg60 = talib.MA(close_prices, timeperiod=60,matype=0)
+            avg20 = talib.MA(close_prices, timeperiod=20, matype=0)
+            avg30 = talib.MA(close_prices, timeperiod=30, matype=0)
+            avg60 = talib.MA(close_prices, timeperiod=60, matype=0)
             # 选出三条中期均线中离昨天收盘价最近的数据（且中期均线必须小于收盘价）。
-            if (close_prices[-1] > avg60[-1] and close_prices[-2] < avg60[-2]) \
-                or (close_prices[-1] > avg30[-1] and close_prices[-2] < avg30[-2]) \
-                or (close_prices[-1] > avg20[-1] and close_prices[-2] > avg20[-2]):
+            if close_prices[-1] > avg60[-1] and close_prices[-2] < avg60[-2]:
+                # 突破60日均线
+                break_through = 60
+            elif close_prices[-1] > avg30[-1] and close_prices[-2] < avg30[-2]:
+                # 突破30日线
+                break_through = 30
+            elif close_prices[-1] > avg20[-1] and close_prices[-2] < avg20[-2]:
+                # 突破20日线
+                break_through = 20
+            # 如果确实突破了中期均线，且没有上方压力，那么就可以选择这个股票
+            if break_through and self.noObviousStress(stock, close_prices[-1], avg20[-1], avg30[-1], avg60[-1]):
+                # 突破形态不能距离上方压力为太近
                 selected_stocks.append(stock)
+                # 将突破结果写入 暂存字典
+                self.select_info[stock] = (close_prices[-1], break_through)
                 self.logger.debug('选出突破中期均线的股票%s' % stock)
         return selected_stocks
+
+    def noObviousStress(self, stock, close, avg20, avg30, avg60):
+        # 必须是突破形态，上方不能有明显的均线压制
+        space20 = (avg20 - close) / close
+        space30 = (avg30 - close) / close
+        space60 = (avg60 - close) / close
+        if close > avg20 and close > avg30 and close > avg60:
+            # 一阳穿三阴，超级强势形态
+            max_avg = max([avg20, avg30, avg60])
+            candle_position = (close - max_avg) / max_avg
+            # 如果长阳线的位置太靠上，那么突破当天所透支的能量太多，有回调需求。
+            if candle_position > 0.7:
+                return False
+            return True
+        if close < avg20 and space20 >= 0.1:
+            # 判断是否被20日线压制
+            return True
+        if close < avg30 and space30 >= 0.1:
+            # 判断是否被30日线压制
+            return True
+        if close < avg60 and space60 >= 0.1:
+            # 判断是否被60日线压制
+            return True
+        return False
 
     def avg120TrendUpAdv(self, stocks):
         # 250日均线，趋势向上
         selected_stocks = []
         for stock in stocks:
             close_prices = history_bars(stock, self.load_period+3, '1d', 'close')
-            avg250 = talib.MA(close_prices, timeperiod=250,matype=0)
+            avg250 = talib.MA(close_prices, timeperiod=250, matype=0)
             # 选出日前3天120日均线趋势向上
             if avg250[-1] > avg250[-2] and avg250[-2] > avg250[-3]:
                 selected_stocks.append(stock)
@@ -292,9 +340,11 @@ class SelSeekBoard(SelectionRuleBase):
         self.logger.info('<开始筛选符合打板条件的股票>')
         selected_stocks = self.periodCheck(self.stocks)
         selected_stocks = self.riseStopCheck(selected_stocks)
-        self.selected_stocks = self.tunoverRateCheck(selected_stocks)
+        selected_stocks = self.tunoverRateCheck(selected_stocks)
+        self.recordSelPrice(selected_stocks)
+        self.selected_stocks = selected_stocks
         self.logger.info('符合打板条件股票%d个' % len(self.selected_stocks))
-        return self.selected_stocks
+        return self.selected_stocks, self.select_info
 
     def riseStopCheck(self, stocks):
         # 连续3个涨停板，三个涨停必须满足： 1，连续； 2，只有3个，不能多。
@@ -302,10 +352,10 @@ class SelSeekBoard(SelectionRuleBase):
         selected_stocks = []
         for stock in stocks:
             close_prices = history_bars(stock, check_period+1, '1d', 'close')
-            if Utility.isContinueRiseStop(close_prices, max_co_present=3) \
-                and not Utility.isContinueRiseStop(close_prices, max_co_present=4):
-                    selected_stocks.append(stock)
-                    self.logger.debug('选出三连板的股票%s' % (stock))
+            if (Utility.isContinueRiseStop(close_prices, max_co_present=3) 
+                    and not Utility.isContinueRiseStop(close_prices, max_co_present=4)):
+                selected_stocks.append(stock)
+                self.logger.debug('选出三连板的股票%s' % (stock))
         return selected_stocks
 
     def tunoverRateCheck(self, stocks):

@@ -2,7 +2,7 @@ from rightTradeModel.stockSelection import StockSelection
 from rightTradeModel.stockTrading import StockTrading
 from rightTradeModel.stockPosition import StockPosition
 import logging
-import pdb
+# import pdb
 
 
 class TradeSystem:
@@ -23,9 +23,8 @@ class TradeSystem:
         self.logger.info('===<股票开市，开始交易>===')
         # 卖出条件检查, 执行卖出股票
         self.stockTrd.sell(context, bar_dict)
-        # 条件买入检查，执行买入股票
+        # 买入条件检查，执行买入股票
         self.stockTrd.buy(context, bar_dict)
-        # self.writeBuyStocks(buy_dict, context.now)
         print('持仓股票数：%d' % len(context.stock_account.positions.keys()))
 
     def calculatePositon(self, context):
@@ -37,5 +36,5 @@ class TradeSystem:
 if __name__ == '__main__':
     ts = TradeSystem()
     ts.stockSel.run()
-    #ts.posiMngt.getPositionPeriod()
-    #ts.stockTrd.takeProfit()
+    # ts.posiMngt.getPositionPeriod()
+    # ts.stockTrd.takeProfit()

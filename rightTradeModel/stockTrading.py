@@ -1,13 +1,14 @@
-from rightTradeModel.tradeRules import CostZone,ContinueBoard,PeakdrawBack,StopLoss
-from rightTradeModel.tradeRules import BuyButtom,BuyRise,BuyBoard
-from rightTradeModel.common.mongo import SelectionDB,TradingDB,PositionDB
+from rightTradeModel.rules.tradeRules import CostZone, ContinueBoard, PeakdrawBack, StopLoss
+from rightTradeModel.rules.tradeRules import BuyButtom, BuyRise, BuyBoard
+from rightTradeModel.rules.tradeRules import PendingBuyRise
+from rightTradeModel.common.mongo import SelectionDB, TradingDB, PositionDB
+from common.utility import Utility
 # from rightTradeModel.stockPosition import StockPosition
 # RQAlpha交易相关API
-from rqalpha.mod.rqalpha_mod_sys_accounts.api.api_stock import order_value,order_target_percent 
+from rqalpha.mod.rqalpha_mod_sys_accounts.api.api_stock import order_value, order_target_percent
 from rqalpha.const import ORDER_STATUS
 import logging
 import pdb
-
 
 
 # 买卖方法实际上调用的是分时方法，所以要注意函数周期的选取 ???
@@ -25,6 +26,8 @@ class StockTrading:
         self.bbtn = BuyButtom()
         self.bris = BuyRise()
         self.bbod = BuyBoard()
+        # 延迟买入方式
+        self.p_bris = PendingBuyRise()
         # 卖出方法
         self.czck = CostZone()
         self.sctb = ContinueBoard()
@@ -32,6 +35,7 @@ class StockTrading:
         self.stls = StopLoss()
 
     def sell(self, context, bar_dict):
+        # pdb.set_trace()
         # 从数据库获取持仓股票的信息
         hold_stocks = self.tdb.getHoldStocks()
         self.logger.info('找到%d只股票，处于持仓状态' % len(hold_stocks))
@@ -40,7 +44,8 @@ class StockTrading:
         # 先处理打板的股票，如果不能连续涨停即离场
         sell_board = self.sctb.search(hold_stocks)
         # 成本区检测，处于成本区的持仓不做止盈止损判断
-        sell_candidate,force_sell,keep_cost_zone = self.czck.search(hold_stocks, context.now)
+        # 仅适用于###抄底模式，追涨模式不做成本区判断###
+        sell_candidate, force_sell = self.czck.search(hold_stocks, context.now)
         # 峰值回撤止盈检测
         sell_peak_draw_back = self.spdb.search(sell_candidate, hold_stocks, context.now)
         # 剔除上一步已经选出的股票
@@ -52,24 +57,19 @@ class StockTrading:
         self.try2Sell('强制平仓', force_sell, context)
         self.try2Sell('峰值回撤', sell_peak_draw_back, context)
         self.try2Sell('固定止损', sell_stop_loss_stocks, context)
-        # 如果仓位指导从高位下降到低位，为了调整仓位而进行的额外操作。
-        # 其实这不是一个好主意，也可以限制只卖不买。
-        # if self.posiMngt.isPositionExceed(context):
-        #     # 仓位超限
-        #     self.try2Sell('强制平仓',keep_cost_zone, context)
 
     def buy(self, context, bar_dict):
         # 从数据库获取选出的股票，（标记过期的选股，并剔除）
-        select_stocks = self.sdb.getSelectStocks(context.now)
+        pending_stocks, select_stocks = self.sdb.getSelectStocks(context.now)
         # 设置仓位控制信息
         self.setupPositionConstraint(context)
-        if not self.bp_sh:
-            # 当没有出现买点时，不买股票
-            return
-        # pdb.set_trace()
+        # if not self.bp_sh:
+        #     # 当没有出现买点时，不买股票
+        #     return
         # 过滤停盘的股票
-        # pdb.set_trace()
         select_stocks = self.filterBuySuspend(select_stocks, bar_dict)
+        print(select_stocks)
+        # === 分析符合当天买入条件的股票 ===
         # 抄底买入条件判断
         bb_stocks = self.bbtn.search(select_stocks['抄底'] if '抄底' in select_stocks else [])
         # 追涨买入条件判断
@@ -80,6 +80,10 @@ class StockTrading:
         self.try2Buy('抄底', bb_stocks, context)
         self.try2Buy('追涨', cr_stocks, context)
         self.try2Buy('打板', sb_stocks, context)
+        # === 分析延迟买入的股票 ===
+        pending_stocks = self.filterBuySuspend(pending_stocks, bar_dict)
+        p_cr_stocks = self.p_bris.search(pending_stocks['追涨'] if '追涨' in pending_stocks else [])
+        self.try2Buy('延迟追涨', p_cr_stocks, context)
 
     def setupPositionConstraint(self, context):
         p_dict = self.pdb.getPosition(context.now)
@@ -105,13 +109,20 @@ class StockTrading:
     def filterBuySuspend(self, select_stocks, bar_dict):
         # 过滤正在持仓的股票
         # 过滤当天停盘的股票
+        # 过滤处于空头市场的股票
         hold_stocks = self.tdb.getHoldStocks()
         for buy_reason in select_stocks.keys():
             stocks = select_stocks[buy_reason]
-            buy_candidate =[]
+            buy_candidate = []
             for stock in stocks:
+                # 过滤停盘和持仓的股票
                 if not (bar_dict[stock].suspended or stock in hold_stocks):
-                    buy_candidate.append(stock)
+                    # 只保留多头市场下的候选股票, 过滤处于空头市场的股票
+                    if self.bp_sh and Utility.isSHZstock(stock):
+                        # pdb.set_trace()
+                        buy_candidate.append(stock)
+                    elif self.bp_sz and Utility.isSZCstock(stock):
+                        buy_candidate.append(stock)
             select_stocks[buy_reason] = buy_candidate
         return select_stocks
 
@@ -138,9 +149,10 @@ class StockTrading:
             if stat:
                 buy_count += 1
                 buy_price = stat.avg_price
-                # 如果买入成功，就将股票信息写入数据库
+                # 如果买入成功，就获取当前股票的选出时间, 就将股票信息写入数据库
+                select_date = self.sdb.getSelectDate(stock)
                 self.sdb.updateSelectStat(stock)
-                self.tdb.insertBuyData(stock, buy_price, buy_reason, position_type, 0, '测试阶段', context.now)
+                self.tdb.insertBuyData(stock, buy_price, buy_reason, position_type, 0, '测试阶段', select_date, context.now)
                 self.logger.debug('%s买入股票%s, 价格%f' % (buy_reason, stock, buy_price))
         self.logger.info('%s买入%d支股票' % (buy_reason, buy_count))
 

@@ -1,11 +1,11 @@
 # from rightTradeModel.common.mongo import TradeDB
 import pymongo
-import tushare as ts
+# import tushare as ts
 import datetime
 import re
-import pdb
+# import pdb
 
-#科普：
+# 科普：
 
 #   沪市A股：600， 601， 603 开头
 #   深市A股：000 开头
@@ -26,7 +26,7 @@ class Concept:
         elif re.match('000|002|300',stock_id):
             stock_id = '%s.XSHE' % stock_id
         # 从Tushare这边读取概念板块数据
-        #['code', 'name', 'c_name']
+        # ['code', 'name', 'c_name']
         concept_data = {
             'code': stock_id,
             'name': stock_name,
@@ -46,7 +46,7 @@ class Concept:
 
 if __name__ == '__main__':
     cpt_db = Concept()
-    #cpt_df = ts.get_concept_classified()
-    #cpt_db.writeDataFrame(cpt_df)
+    # cpt_df = ts.get_concept_classified()
+    # cpt_db.writeDataFrame(cpt_df)
     cpt_db.queryData('军工航天')
-    #print(result)
+    # print(result)

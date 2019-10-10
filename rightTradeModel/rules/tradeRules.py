@@ -1,6 +1,8 @@
 from rqalpha.api.api_base import history_bars
 from rqalpha.api.api_base import get_trading_dates
 from rightTradeModel.common.utility import Utility
+from rightTradeModel.common.mongo import SelectionDB
+import talib
 import pdb
 
 
@@ -12,16 +14,16 @@ class CostZone:
 
     def search(self, sc_dict, today):
         # 检查成本区
-        sell_stocks,force_close,keep_cost_zone = self.costZoneCheck(sc_dict, today)
-        return sell_stocks,force_close,keep_cost_zone
-    
+        sell_stocks, force_close = self.costZoneCheck(sc_dict, today)
+        return sell_stocks, force_close
+
     def costZoneCheck(self, sc_dict, today):
         sell_stocks = []
         force_close = []
-        keep_cost_zone = []
         for stock in sc_dict.keys():
-            close = history_bars(stock, 5, '1d', 'close')
             buy_price = sc_dict[stock][1]
+            buy_reason = sc_dict[stock][2]
+            close = history_bars(stock, 5, '1d', 'close')
             # increase_rate = (now - past) / past
             chg_rate = (close[-1] - buy_price) / buy_price
             # 如果超过5%的成本区，就可以准备做卖出检查了
@@ -29,16 +31,16 @@ class CostZone:
                chg_rate < -self.const_zone_threshold:
                 sell_stocks.append(stock)
             else:
+                # 只有 抄底 才需要检查成本区, 追涨的股票直接加入卖出检查列表
+                if not buy_reason == u'抄底':
+                    continue
                 # 如果持股天数超过5天, 且还在成本区，就强制卖出
                 buy_date = sc_dict[stock][0]
-                #hold_days = (today - buy_date).days + 1
+                # hold_days = (today - buy_date).days + 1
                 hold_days = len(get_trading_dates(buy_date, today))
                 if hold_days >= self.max_hold_days:
                     force_close.append(stock)
-                else:
-                    # 剩下的就是还留在成本区的股票
-                    keep_cost_zone.append(stock)
-        return sell_stocks,force_close,keep_cost_zone
+        return sell_stocks, force_close
 
 
 class ContinueBoard:
@@ -69,8 +71,8 @@ class ContinueBoard:
 class PeakdrawBack:
     # 卖出规则：峰值回撤
     def __init__(self):
-        self.retreat_threshold = -0.06
-    
+        self.retreat_threshold = -0.15
+
     def search(self, stocks, sc_dict, today):
         sell_stocks = []
         for stock in stocks:
@@ -81,6 +83,7 @@ class PeakdrawBack:
             # increase_rate = (now - past) / past
             retreat_rate = (close[-1] - highs.max()) / highs.max()
             if retreat_rate <= self.retreat_threshold:
+                # pdb.set_trace()
                 sell_stocks.append(stock)
         return sell_stocks
 
@@ -112,15 +115,15 @@ class BuyButtom:
         bam_stocks = self.breakAtMiddle(stocks)
         rat_stocks = self.redAtTail(stocks)
         return list(set(bam_stocks + rat_stocks))
-    
+
     def breakAtMiddle(self, stocks):
         # 盘中突破
         rise_threshold = 0.04
         buy_stocks = []
         for stock in stocks:
-            opens = history_bars(stock, self.period, '1d', 'open')
+            # opens = history_bars(stock, self.period, '1d', 'open')
             close = history_bars(stock, self.period, '1d', 'close')
-            # 涨幅 = (now - past) / past 
+            # 涨幅 = (now - past) / past
             incr_rate = (close[-1] - close[-2]) / close[-2]
             if incr_rate > rise_threshold:
                 # 盘中涨幅超过4%
@@ -145,14 +148,14 @@ class BuyRise():
         self.period = 5
 
     def search(self, stocks):
-        #bro_stocks = self.bigRiseOpen(stocks)
+        # bro_stocks = self.bigRiseOpen(stocks)
         bfo_stocks = self.bigFallOpen(stocks)
         sro_stocks = self.smallRiseOpen(stocks)
-        #return list(set(bro_stocks + bfo_stocks + sro_stocks))
+        # return list(set(bro_stocks + bfo_stocks + sro_stocks))
         return list(set(bfo_stocks + sro_stocks))
-    
+
     def bigRiseOpen(self, stocks):
-        # 大幅高开，直接追
+        # 这条规则应该优化成，涨停开盘，如果开板就追一把。
         rise_threshold = 0.07
         rise_stop = 0.095
         buy_stocks = []
@@ -200,15 +203,81 @@ class BuyRise():
         return buy_stocks
 
 
+class PendingBuyRise:
+    # 延迟追涨规则：有些股票在选出后，并不合符买入条件，所以可以等几天，等它回踩5/10日线时，再考虑买入
+    def __init__(self):
+        self.period = 20
+        self.sdb = SelectionDB()
+
+    def search(self, stocks):
+        select_stocks = self.stepBack(stocks)
+        # rtm_stocks = self.riseTooMuch(sb_stocks)
+        select_stocks = self.aboveBoolMiddelLine(select_stocks)
+        select_stocks = self.aboveBreakAvgLine(select_stocks)
+        return select_stocks
+
+    def stepBack(self, stocks):
+        # 回踩5/10日线企稳，意思就是前一天回踩5日线，然后今天依然在5日线之上
+        buy_stocks = []
+        for stock in stocks:
+            lows = history_bars(stock, self.period, '1d', 'low')
+            close = history_bars(stock, self.period, '1d', 'close')
+            avg5 = talib.MA(close, timeperiod=5, matype=0)
+            avg10 = talib.MA(close, timeperiod=10, matype=0)
+            if lows[-2] < avg5[-2] and close[-2] > avg5[-2] and close[-1] > avg5[-1]:
+                # 前一天回踩5日线，今天依然收盘在5日线之上
+                buy_stocks.append(stock)
+            elif lows[-2] < avg10[-2] and close[-2] > avg10[-2] and close[-1] > avg10[-1]:
+                # 前一天回踩10日线，今天依然收盘在10日线之上
+                buy_stocks.append(stock)
+        return buy_stocks
+
+    def aboveBoolMiddelLine(self, stocks):
+        # 高于布林线中轨
+        # 且必须是红盘才考虑买股票
+        buy_stocks = []
+        for stock in stocks:
+            close = history_bars(stock, self.period, '1d', 'close')
+            opens = history_bars(stock, self.period, '1d', 'open')
+            upper, middle, lower = talib.BBANDS(close, timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)
+            if close[-1] >= middle[-1] and close[-1] > opens[-1]:
+                buy_stocks.append(stock)
+        return buy_stocks
+
+    def aboveBreakAvgLine(self, stocks):
+        # 必须高于之前选出时，突破的那条均线
+        buy_stocks = []
+        for stock in stocks:
+            # 找到选出当天的信息
+            _, break_through = self.sdb.getSelectInfo(stock, '追涨')
+            close = history_bars(stock, break_through, '1d', 'close')
+            avg = talib.MA(close, timeperiod=break_through, matype=0)
+            if close[-1] > avg[-1]:
+                buy_stocks.append(stock)
+        return buy_stocks
+
+    def riseTooMuch(self, stocks):
+        buy_stocks = []
+        for stock in stocks:
+            # 找到涨停当天的价格
+            select_price, break_through = self.sdb.getSelectInfo(stock, '追涨')
+            # 只取五天内的收盘最高价
+            close = history_bars(stock, 5, '1d', 'close')
+            rise_rate = (max(close) - select_price) / select_price
+            if rise_rate <= 0.05:
+                buy_stocks.append(stock)
+        return buy_stocks
+
+
 class BuyBoard:
     # 买入规则：打板
     def __init__(self):
         self.period = 5
-    
+
     def search(self, stocks):
         bfo_stocks = self.bigFallOpen(stocks)
         return bfo_stocks
-    
+
     def bigFallOpen(self, stocks):
         # 大幅低开，放心追
         rise_threshold = -0.07
@@ -220,4 +289,4 @@ class BuyBoard:
             open_rate = (opens[-1] - close[-2]) / close[-2]
             if open_rate < rise_threshold:
                 buy_stocks.append(stock)
-        return buy_stocks 
+        return buy_stocks
