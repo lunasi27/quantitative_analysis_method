@@ -35,4 +35,4 @@ def after_trading(context):
     ts = context.ts
     ts.select(context)
     # For debug usage
-    # print(context.now)
+    print(context.now)

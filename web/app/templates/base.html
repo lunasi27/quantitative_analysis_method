@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        {% if title %}
+            <title>{{title}} - 量化特战队</title>
+        {% else %}
+            <title>欢迎来到 - 量化特战队</title>
+        {% endif %}
+    </head>
+    <body>
+        <div>
+            {% block content %}{% endblock %}
+        </div>
+    </body>
+</html>
