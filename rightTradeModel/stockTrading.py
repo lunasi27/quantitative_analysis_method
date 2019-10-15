@@ -2,7 +2,7 @@ from rightTradeModel.rules.tradeRules import CostZone, ContinueBoard, PeakdrawBa
 from rightTradeModel.rules.tradeRules import BuyButtom, BuyRise, BuyBoard
 from rightTradeModel.rules.tradeRules import PendingBuyRise
 from rightTradeModel.common.mongo import SelectionDB, TradingDB, PositionDB
-from common.utility import Utility
+from rightTradeModel.common.utility import Utility
 # from rightTradeModel.stockPosition import StockPosition
 # RQAlpha交易相关API
 from rqalpha.mod.rqalpha_mod_sys_accounts.api.api_stock import order_value, order_target_percent

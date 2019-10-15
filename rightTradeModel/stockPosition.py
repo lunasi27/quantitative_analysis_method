@@ -1,5 +1,5 @@
 from rightTradeModel.rules.positionRules import MarketRisk, MarketTrend, MarketBuyPoint
-from common.mongo import PositionDB
+from rightTradeModel.common.mongo import PositionDB
 # import pdb
 
 
