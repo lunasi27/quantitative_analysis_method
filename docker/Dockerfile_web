@@ -1,0 +1,15 @@
+FROM ubuntu:18.04
+MAINTAINER Hao Wang "wanghao27@163.com"
+ENV PYTHONPATH=/new_test DEBIAN_FRONTEND=noninteractive
+RUN projectDeps='python3 python3-pip git mongodb' \
+    && apt-get update \
+    && apt-get install -y $projectDeps
+RUN git clone https://github.com/lunasi27/new_test.git \
+    && echo "Asia/Shanghai" | tee /etc/timezone \
+    && apt-get install -y tzdata \
+    && dpkg-reconfigure --frontend noninteractive tzdata
+WORKDIR /new_test/web
+RUN pip3 install -r requirements.txt \
+    && sed -i 's/bind_ip = .*/bind_ip = 0.0.0.0/g' /etc/mongodb.conf
+CMD ["sh", "-c", "service mongodb start; python3 manage.py"]
+EXPOSE 9000 27017
