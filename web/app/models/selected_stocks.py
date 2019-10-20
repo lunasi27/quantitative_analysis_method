@@ -28,7 +28,10 @@ class Select:
         return data_set
 
     def getSelectPool(self):
-        # 获取还在观察期的股票
-        query = {'status': {'$exists': False}, 'sel_time': {'$lt': self.today}}
+        # 获取还在观察期的股票, 暂定5日内
+        begin_time = self.today - timedelta(days=7)
+        end_time = self.today
+        # 取区间时间段的股票
+        query = {'$and': [{'sel_time': {'$gt': begin_time}}, {'sel_time': {'$lt': end_time}}]}
         data_set = self.collection.find(query)
         return data_set
