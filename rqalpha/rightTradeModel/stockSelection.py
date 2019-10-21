@@ -26,9 +26,10 @@ class StockSelection:
         scr_stocks = list(set(scr_stocks) - set(ssb_stocks))
         return sbb_stocks, scr_stocks, ssb_stocks
 
-    def saveSelection(self, stocks, select_info, reason, today):
+    def saveSelection(self, stocks, select_info, sel_type, today):
         for stock in stocks:
-            self.seldb.insertSelectData(stock, select_info[stock], reason, today)
+            sel_price, sel_reason = select_info[stock]
+            self.seldb.insertSelectData(stock, sel_price, sel_reason, sel_type, today)
 
     def run(self, context):
         stocks = self.getStocks()

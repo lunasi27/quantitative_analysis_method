@@ -13,17 +13,17 @@ class Select:
         self.today = today.replace(hour=15, minute=30, second=0, microsecond=0)
 
     def getBuyLow(self):
-        query = {'sel_time': self.today, 'sel_reason': '抄底'}
+        query = {'sel_time': self.today, 'sel_type': '抄底'}
         data_set = self.collection.find(query)
         return data_set
 
     def getBuyHigh(self):
-        query = {'sel_time': self.today, 'sel_reason': '追涨'}
+        query = {'sel_time': self.today, 'sel_type': '追涨'}
         data_set = self.collection.find(query)
         return data_set
 
     def getBuyStop(self):
-        query = {'sel_time': self.today, 'sel_reason': '打板'}
+        query = {'sel_time': self.today, 'sel_type': '打板'}
         data_set = self.collection.find(query)
         return data_set
 
@@ -33,5 +33,5 @@ class Select:
         end_time = self.today
         # 取区间时间段的股票
         query = {'$and': [{'sel_time': {'$gt': begin_time}}, {'sel_time': {'$lt': end_time}}]}
-        data_set = self.collection.find(query)
+        data_set = self.collection.find(query).sort('sel_time', -1)
         return data_set

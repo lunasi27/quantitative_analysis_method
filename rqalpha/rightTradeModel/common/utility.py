@@ -99,6 +99,24 @@ class Utility:
         else:
             return False
 
+    @staticmethod
+    def incraceRate(incr, orign):
+        return (incr - orign) / orign
+
+    @staticmethod
+    def avgCrossCheck(open_price, close_price, avg_price):
+        if close_price > avg_price and open_price < avg_price:
+            return True
+        return False
+
+    @staticmethod
+    def avgPositionCheck(close_price, open_price, avg_list, ratio):
+        # avg_list = [avg20, avg30, avg_60]
+        # ratio between [0,1]
+        avg_cur = sum(avg_list) / len(avg_list)
+        raise_space = open_price + (close_price - open_price) * ratio
+        return avg_cur >= raise_space
+
 
 if __name__ == '__main__':
     data = [23.7, 23.78, 23.72, 23.96, 23.9, 23.85, 23.81, 23.72, 23.75,

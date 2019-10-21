@@ -43,7 +43,7 @@ class SelectionRuleBase:
     def recordSelPrice(self, stocks):
         for stock in stocks:
             close_prices = history_bars(stock, 1, '1d', 'close')
-            self.select_info[stock] = close_prices[0]
+            self.select_info[stock] = (close_prices[0], 'dummy')
 
 
 class SelBuyButtom(SelectionRuleBase):
@@ -179,17 +179,23 @@ class SelChaseRise(SelectionRuleBase):
         super(SelChaseRise, self).search(stocks)
         # Basic condiction
         self.logger.info('<开始筛选符合追涨条件的股票>')
+        # 这里先做周期选择的原因是，剔除那些才上市的股票，防止后面处理的时候出现指针越界的情况
         selected_stocks = self.periodCheck(self.stocks)
         selected_stocks = self.riseStopCheck(selected_stocks)
         selected_stocks = self.riseRateCheck(selected_stocks)
         selected_stocks = self.breakStrength(selected_stocks)
         selected_stocks = self.rsiCheck(selected_stocks)
-        # Advance condiction
+        # 这个条件和下面的条件属于并行条件，所以最后要将两种选股的结果相加才可以
+        prh_stocks = self.periodRecordHigh(selected_stocks)
         selected_stocks = self.breakAvgsAdv(selected_stocks)
+        # Advance condiction
         # 这个条件太严格了，导致追涨算法很难被触发。
         # selected_stocks = self.avg120TrendUpAdv(selected_stocks)
+        # 将两种结果叠加输出
+        selected_stocks.extend(prh_stocks)
         self.selected_stocks = selected_stocks
         self.logger.info('符合追涨条件股票%d个' % len(self.selected_stocks))
+        # pdb.set_trace()
         return self.selected_stocks, self.select_info
 
     def periodCheck(self, stocks):
@@ -269,53 +275,68 @@ class SelChaseRise(SelectionRuleBase):
         selected_stocks = []
         for stock in stocks:
             # 突破标志位
-            break_through = None
+            open_prices = history_bars(stock, self.load_period, '1d', 'open')
             close_prices = history_bars(stock, self.load_period, '1d', 'close')
             avg20 = talib.MA(close_prices, timeperiod=20, matype=0)
             avg30 = talib.MA(close_prices, timeperiod=30, matype=0)
             avg60 = talib.MA(close_prices, timeperiod=60, matype=0)
-            # 选出三条中期均线中离昨天收盘价最近的数据（且中期均线必须小于收盘价）。
-            if close_prices[-1] > avg60[-1] and close_prices[-2] < avg60[-2]:
-                # 突破60日均线
-                break_through = 60
-            elif close_prices[-1] > avg30[-1] and close_prices[-2] < avg30[-2]:
-                # 突破30日线
-                break_through = 30
-            elif close_prices[-1] > avg20[-1] and close_prices[-2] < avg20[-2]:
-                # 突破20日线
-                break_through = 20
             # 如果确实突破了中期均线，且没有上方压力，那么就可以选择这个股票
-            if break_through and self.noObviousStress(stock, close_prices[-1], avg20[-1], avg30[-1], avg60[-1]):
-                # 突破形态不能距离上方压力为太近
+            # 计算上穿的中期均线的数量和名称
+            break_through = self._avgCrossFind(open_prices[-1], close_prices[-1], avg20[-1], avg30[-1], avg60[-1])
+            if self._strengthCheck(break_through, open_prices[-1], close_prices[-1], avg20[-1], avg30[-1], avg60[-1]):
                 selected_stocks.append(stock)
                 # 将突破结果写入 暂存字典
-                self.select_info[stock] = (close_prices[-1], break_through)
+                self.select_info[stock] = (close_prices[-1], '突破%s均线' % break_through)
                 self.logger.debug('选出突破中期均线的股票%s' % stock)
         return selected_stocks
 
-    def noObviousStress(self, stock, close, avg20, avg30, avg60):
-        # 必须是突破形态，上方不能有明显的均线压制
-        space20 = (avg20 - close) / close
-        space30 = (avg30 - close) / close
-        space60 = (avg60 - close) / close
-        if close > avg20 and close > avg30 and close > avg60:
-            # 一阳穿三阴，超级强势形态
-            max_avg = max([avg20, avg30, avg60])
-            candle_position = (close - max_avg) / max_avg
-            # 如果长阳线的位置太靠上，那么突破当天所透支的能量太多，有回调需求。
-            if candle_position > 0.7:
+    def _avgCrossFind(self, open_price, close_price, avg20, avg30, avg60):
+        break_through = []
+        if Utility.avgCrossCheck(open_price, close_price, avg60):
+            # 突破60日均线
+            break_through.append(60)
+        if Utility.avgCrossCheck(open_price, close_price, avg30):
+            # 突破30日线
+            break_through.append(30)
+        if Utility.avgCrossCheck(open_price, close_price, avg20):
+            # 突破20日线
+            break_through.append(20)
+        return break_through
+
+    def _strengthCheck(self, break_through, open_price, close_price, avg20, avg30, avg60):
+        if len(break_through) == 0:
+            # 没有上穿任何一条中期均线，直接忽略
+            return False
+        elif len(break_through) < 3:
+            # 只突破了2条或者1条中期均线，则必须是强势突破形态，上方不能有明显的均线压制
+            if close_price < avg20 and Utility.incraceRate(avg20, close_price) < 0.03:
+                # 判断是否被20日线压制(20日线距离收盘价小于3%)
                 return False
-            return True
-        if close < avg20 and space20 >= 0.1:
-            # 判断是否被20日线压制
-            return True
-        if close < avg30 and space30 >= 0.1:
-            # 判断是否被30日线压制
-            return True
-        if close < avg60 and space60 >= 0.1:
-            # 判断是否被60日线压制
-            return True
-        return False
+            if close_price < avg30 and Utility.incraceRate(avg30, close_price) < 0.03:
+                # 判断是否被30日线压制(30日线距离收盘价小于3%)
+                return False
+            if close_price < avg60 and Utility.incraceRate(avg60, close_price) < 0.03:
+                # 判断是否被60日线压制(60日线距离收盘价小于3%)
+                return False
+        # 判断上穿均线和收盘价的位置关系：
+        #     1，如果长阳线的位置太靠上，那么突破当天所透支的能量太多，有回调需求, 不能选择。
+        #     2，一阳穿三阴，超级强势形态
+        mp = {20: avg20, 30: avg30, 60: avg60}
+        return Utility.avgPositionCheck(close_price, open_price, [mp[key] for key in break_through], 0.4)
+
+    def periodRecordHigh(self, stocks):
+        # 创阶段性历史新高
+        selected_stocks = []
+        observation_period = 120
+        for stock in stocks:
+            close_prices = history_bars(stock, observation_period, '1d', 'close')
+            # 涨停且当前价格是近半年来的最高值，直接选出。
+            if close_prices[-1] == max(close_prices):
+                selected_stocks.append(stock)
+                # select_info = (price, reason)
+                self.select_info[stock] = (close_prices[-1], '创半年新高')
+                self.logger.debug('选出半年之内创新高的股票%s' % stock)
+        return selected_stocks
 
     def avg120TrendUpAdv(self, stocks):
         # 250日均线，趋势向上

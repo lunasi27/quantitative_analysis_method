@@ -1,41 +1,67 @@
 <!-- extend from base layout -->
 {% extends "base.html" %}
 {% block content %}
+<style>
+    table,table tr th, table tr td { border:1px solid #0094ff; }
+    table { width: 400px; min-height: 20px; line-height: 20px; text-align: center; border-collapse: collapse;}   
+</style>
 <h1>每日推荐</h1>
 <div>日期：{{select.today.strftime('%Y-%m-%d')}}</div>
 <h3>抄底候选</h3>
     <table>
+        <tr>
+            <td><b>股票</b></td>
+            <td><b>选出价格</b></td>
+            <td><b>选出原因</b></td>
+        </tr>
         {% for item in select.getBuyLow() %}
             <tr>
                 <td>{{item['stock'].split('.')[0]}}</td>
-                <td>{{item['sel_info']}}</td>
+                <td>{{item['sel_price']}}</td>
+                <td>{{item['sel_reason']}}</td>
             </tr>
         {% endfor %}
     </table>
 <h3>追涨候选</h3>
     <table>
+        <tr>
+            <td><b>股票</b></td>
+            <td><b>选出价格</b></td>
+            <td><b>选出原因</b></td>
+        </tr>
         {% for item in select.getBuyHigh() %}
             <tr>
                 <td>{{item['stock'].split('.')[0]}}</td>
-                <td>{{item['sel_info']}}</td>
+                <td>{{item['sel_price']}}</td>
+                <td>{{item['sel_reason']}}</td>
             </tr>
         {% endfor %}
     </table>
 <h3>打板候选</h3>
     <table>
+        <tr>
+            <td><b>股票</b></td>
+            <td><b>选出价格</b></td>
+            <td><b>选出原因</b></td>
+        </tr>
         {% for item in select.getBuyStop() %}
             <tr>
                 <td>{{item['stock'].split('.')[0]}}</td>
-                <td>{{item['sel_info']}}</td>
+                <td>{{item['sel_price']}}</td>
+                <td>{{item['sel_reason']}}</td>
             </tr>
         {% endfor %}
     </table>
 <h3>选出观察池(5天)</h3>
 <table>
+    <tr>
+        <td><b>股票</b></td>
+        <td><b>选出日期</b></td>
+    </tr>
     {% for item in select.getSelectPool() %}
         <tr>
             <td>{{item['stock'].split('.')[0]}}</td>
-            <td>{{item['sel_time']}}</td>
+            <td>{{item['sel_time'].date()}}</td>
         </tr>
     {% endfor %}
 </table>
