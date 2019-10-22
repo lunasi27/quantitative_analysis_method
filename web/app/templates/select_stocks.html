@@ -6,7 +6,7 @@
     table { width: 400px; min-height: 20px; line-height: 20px; text-align: center; border-collapse: collapse;}   
 </style>
 <h1>每日推荐</h1>
-<div>日期：{{select.today.strftime('%Y-%m-%d')}}</div>
+<div>选出日期：{{select.today.strftime('%Y-%m-%d')}}</div>
 <h3>抄底候选</h3>
     <table>
         <tr>
@@ -56,11 +56,13 @@
 <table>
     <tr>
         <td><b>股票</b></td>
+        <td><b>选股类型</b></td>
         <td><b>选出日期</b></td>
     </tr>
     {% for item in select.getSelectPool() %}
         <tr>
             <td>{{item['stock'].split('.')[0]}}</td>
+            <td>{{item['sel_type']}}</td>
             <td>{{item['sel_time'].date()}}</td>
         </tr>
     {% endfor %}

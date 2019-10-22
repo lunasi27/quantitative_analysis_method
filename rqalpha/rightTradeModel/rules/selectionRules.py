@@ -40,10 +40,10 @@ class SelectionRuleBase:
         self.logger.info('过滤新股后，剩余股票%s个' % len(selected_stocks))
         return selected_stocks
 
-    def recordSelPrice(self, stocks):
+    def recordSelPrice(self, stocks, reason):
         for stock in stocks:
             close_prices = history_bars(stock, 1, '1d', 'close')
-            self.select_info[stock] = (close_prices[0], 'dummy')
+            self.select_info[stock] = (close_prices[0], reason)
 
 
 class SelBuyButtom(SelectionRuleBase):
@@ -69,7 +69,7 @@ class SelBuyButtom(SelectionRuleBase):
             selected_stocks = self.deviateAvgCheckAdv(selected_stocks)
             selected_stocks = self.bollCheckAdv(selected_stocks)
         # 记录股票的选出价格
-        self.recordSelPrice(selected_stocks)
+        self.recordSelPrice(selected_stocks, '股价大幅偏离中期均线，RSI<30')
         self.selected_stocks = selected_stocks
         self.logger.info('符合抄底条件股票%s个' % len(self.selected_stocks))
         return self.selected_stocks, self.select_info
@@ -362,7 +362,7 @@ class SelSeekBoard(SelectionRuleBase):
         selected_stocks = self.periodCheck(self.stocks)
         selected_stocks = self.riseStopCheck(selected_stocks)
         selected_stocks = self.tunoverRateCheck(selected_stocks)
-        self.recordSelPrice(selected_stocks)
+        self.recordSelPrice(selected_stocks, '连续放量突破')
         self.selected_stocks = selected_stocks
         self.logger.info('符合打板条件股票%d个' % len(self.selected_stocks))
         return self.selected_stocks, self.select_info
