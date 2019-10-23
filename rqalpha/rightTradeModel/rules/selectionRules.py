@@ -390,3 +390,8 @@ class SelSeekBoard(SelectionRuleBase):
                 selected_stocks.append(stock)
                 self.logger.debug('选出成交量逐渐放大的股票%s' % (stock))
         return selected_stocks
+
+    def volumeTooHighCheck(self):
+        # 对于打板的股票，入股第三天的成交量超过前两天之和，有可能是主力出逃
+        # 但是，目前只是选出，并不是买入，是否买入还要看第二天盘中走势。所以是否要加这个判断还有待商榷。
+        pass

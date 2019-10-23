@@ -14,12 +14,13 @@ class StockSelection:
         self.ssb = SelSeekBoard()
         # Selection DB
         self.seldb = SelectionDB()
+        self.stock_name_map = {}
 
     def getStocks(self):
         # 获取所有开盘的股票
-        stock = all_instruments('CS')
-        active_stock_df = stock[stock.status == 'Active']
-        return active_stock_df.order_book_id
+        stocks = all_instruments('CS')
+        active_stocks_df = stocks[stocks.status == 'Active']
+        return active_stocks_df.order_book_id
 
     def refining(self, sbb_stocks, scr_stocks, ssb_stocks):
         sbb_stocks = list(set(sbb_stocks) - set(scr_stocks) - set(ssb_stocks))
@@ -27,9 +28,14 @@ class StockSelection:
         return sbb_stocks, scr_stocks, ssb_stocks
 
     def saveSelection(self, stocks, select_info, sel_type, today):
+        # 获取所有股票的ID与名字的对应关系
+        stocks_df = all_instruments('CS')
         for stock in stocks:
+            # 获取所有股票的ID与名字的对应关系
+            loc_row = stocks_df.loc[stocks_df.order_book_id == stock, 'symbol']
+            stock_name = loc_row[loc_row.index[0]]
             sel_price, sel_reason = select_info[stock]
-            self.seldb.insertSelectData(stock, sel_price, sel_reason, sel_type, today)
+            self.seldb.insertSelectData(stock, stock_name, sel_price, sel_reason, sel_type, today)
 
     def run(self, context):
         stocks = self.getStocks()

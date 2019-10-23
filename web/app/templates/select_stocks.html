@@ -10,6 +10,7 @@
 <h3>抄底候选</h3>
     <table>
         <tr>
+            <td><b>代码</b></td>
             <td><b>股票</b></td>
             <td><b>选出价格</b></td>
             <td><b>选出原因</b></td>
@@ -17,6 +18,7 @@
         {% for item in select.getBuyLow() %}
             <tr>
                 <td>{{item['stock'].split('.')[0]}}</td>
+                <td>{{item['name']}}</td>
                 <td>{{item['sel_price']}}</td>
                 <td>{{item['sel_reason']}}</td>
             </tr>
@@ -25,6 +27,7 @@
 <h3>追涨候选</h3>
     <table>
         <tr>
+            <td><b>代码</b></td>
             <td><b>股票</b></td>
             <td><b>选出价格</b></td>
             <td><b>选出原因</b></td>
@@ -32,6 +35,7 @@
         {% for item in select.getBuyHigh() %}
             <tr>
                 <td>{{item['stock'].split('.')[0]}}</td>
+                <td>{{item['name']}}</td>
                 <td>{{item['sel_price']}}</td>
                 <td>{{item['sel_reason']}}</td>
             </tr>
@@ -40,6 +44,7 @@
 <h3>打板候选</h3>
     <table>
         <tr>
+            <td><b>代码</b></td>
             <td><b>股票</b></td>
             <td><b>选出价格</b></td>
             <td><b>选出原因</b></td>
@@ -47,6 +52,7 @@
         {% for item in select.getBuyStop() %}
             <tr>
                 <td>{{item['stock'].split('.')[0]}}</td>
+                <td>{{item['name']}}</td>
                 <td>{{item['sel_price']}}</td>
                 <td>{{item['sel_reason']}}</td>
             </tr>
@@ -55,6 +61,7 @@
 <h3>选出观察池(5天)</h3>
 <table>
     <tr>
+        <td><b>代码</b></td>
         <td><b>股票</b></td>
         <td><b>选股类型</b></td>
         <td><b>选出日期</b></td>
@@ -62,6 +69,7 @@
     {% for item in select.getSelectPool() %}
         <tr>
             <td>{{item['stock'].split('.')[0]}}</td>
+            <td>{{item['name']}}</td>
             <td>{{item['sel_type']}}</td>
             <td>{{item['sel_time'].date()}}</td>
         </tr>

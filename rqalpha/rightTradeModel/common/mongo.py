@@ -89,7 +89,7 @@ class SelectionDB:
     def clean(self):
         self.collection.drop()
 
-    def insertSelectData(self, stock, sel_price, sel_reason, sel_type, sel_time):
+    def insertSelectData(self, stock, stock_name, sel_price, sel_reason, sel_type, sel_time):
         # 在写入数据库前，先判断当前的股票是否在5天前被选出（考虑周末所以使用7天）
         # query = {'status': {'$exists': False}, 'stock': stock}
         query = {'stock': stock, 'sel_time': {'$gt': sel_time - timedelta(days=7)}}
@@ -99,6 +99,7 @@ class SelectionDB:
             # 如果是之前被选出的股票，则跳过不处理（如果一直不被买入，则会标为过期）
             select_data = {
                 'stock': stock,
+                'name': stock_name,
                 'sel_price': sel_price,
                 'sel_reason': sel_reason,
                 'sel_type': sel_type,
