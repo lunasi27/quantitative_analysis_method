@@ -21,3 +21,5 @@ docker exec -it d4467c46609c bash
 
 4， 查看端口占用
 netstat -ntlp
+
+Note： 目前为止我们依然使用整体build的docker image，web和数据库分开的build需要容器编排工具帮忙。暂时没有这个需求。

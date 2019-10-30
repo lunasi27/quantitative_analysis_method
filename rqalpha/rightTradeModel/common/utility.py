@@ -57,6 +57,7 @@ class Utility:
 
     @staticmethod
     def isabsoluteDesc(data):
+        # 计算趋势，对数据做拟合然后取趋势就好了
         flag = data[0]
         for val in data[1:]:
             if val < flag:

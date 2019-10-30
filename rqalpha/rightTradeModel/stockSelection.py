@@ -1,6 +1,7 @@
 from rightTradeModel.rules.selectionRules import SelBuyButtom
 from rightTradeModel.rules.selectionRules import SelChaseRise
 from rightTradeModel.rules.selectionRules import SelSeekBoard
+from rightTradeModel.rules.selectionRules import SelPoolCheck
 from rightTradeModel.common.mongo import SelectionDB
 from rqalpha.api.api_base import all_instruments
 import pdb
@@ -37,6 +38,14 @@ class StockSelection:
             sel_price, sel_reason = select_info[stock]
             self.seldb.insertSelectData(stock, stock_name, sel_price, sel_reason, sel_type, today)
 
+    def updateSelectionPool(self):
+        # 给观察池中的踩破10日线的股票打上标签
+        pool_stocks = self.seldb.getPoolSelectDate()
+        ignore_stocks = SelPoolCheck(pool_stocks)
+        for stock in ignore_stocks:
+            print(stock)
+            # self.seldb.updateIgnoreStock(stock)
+
     def run(self, context):
         stocks = self.getStocks()
         # 搜索符合选股条件的股票
@@ -48,6 +57,7 @@ class StockSelection:
         # print('抄底候选(%d)：%s' % (len(self.sbb_stocks), self.sbb_stocks))
         # print('追涨候选(%d)：%s' % (len(self.scr_stocks), self.scr_stocks))
         # print('打板候选(%d)：%s' % (len(self.ssb_stocks), self.ssb_stocks))
+        self.updateSelectionPool()
         # 将选出的股票写入数据库(选股表)
         self.saveSelection(sbb_stocks, sbb_select_info, '抄底', context.now)
         self.saveSelection(scr_stocks, scr_select_info, '追涨', context.now)

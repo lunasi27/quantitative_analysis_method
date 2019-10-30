@@ -116,6 +116,31 @@ class SelectionDB:
         else:
             return result['sel_time']
 
+    def getPoolSelectDate(self, period=7):
+        # 获取还在观察期的股票, 暂定5日内
+        today = self.collection.find_one(sort=[('sel_time', -1)])['sel_time']
+        begin_time = today - timedelta(days=period)
+        end_time = today
+        # 取区间时间段的股票 且 只取追涨的股票
+        query = {'$and': [{'sel_time': {'$gt': begin_time}}, {'sel_time': {'$lt': end_time}}, {'sel_type': '追涨'}]}
+        result = self.collection.find(query).sort('sel_time', -1)
+        if result is None:
+            return None
+        else:
+            return [item['stock'] for item in result]
+
+    def updateIgnoreStock(self, stock, period=7):
+        # 将不符合观察要求的股票，剔除选股列表
+        today = self.collection.find_one(sort=[('sel_time', -1)])['sel_time']
+        begin_time = today - timedelta(days=period)
+        end_time = today
+        query = {'$and': [{'sel_time': {'$gt': begin_time}}, {'sel_time': {'$lt': end_time}}, {'sel_type': '追涨'}]}
+        select_data = {
+            'status': '踩破10日线',
+        }
+        value = {'$set': select_data}
+        self.collection.update_one(query, value)
+
     def updateSelectStat(self, stock):
         # 被选中交易的股票会被标上买入
         query = {'status': {'$exists': False}, 'stock': stock}

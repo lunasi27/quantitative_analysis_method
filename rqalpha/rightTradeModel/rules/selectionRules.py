@@ -61,7 +61,7 @@ class SelBuyButtom(SelectionRuleBase):
         selected_stocks = self.deviateAvgCheck(selected_stocks)
         selected_stocks = self.rsiCheck(selected_stocks)
         selected_stocks = self.fallStopCheck(selected_stocks)
-        selected_stocks = self.volShrinkCheck(selected_stocks)
+        # selected_stocks = self.volShrinkCheck(selected_stocks)
         # 进阶抄底规则
         if len(selected_stocks) > 30:
             self.logger.info('选出抄底股票超过30个，启动优化条件')
@@ -69,7 +69,7 @@ class SelBuyButtom(SelectionRuleBase):
             selected_stocks = self.deviateAvgCheckAdv(selected_stocks)
             selected_stocks = self.bollCheckAdv(selected_stocks)
         # 记录股票的选出价格
-        self.recordSelPrice(selected_stocks, '股价大幅偏离中期均线，RSI<30')
+        self.recordSelPrice(selected_stocks, '股价大幅偏离中期均线，RSI进入底部极值区域')
         self.selected_stocks = selected_stocks
         self.logger.info('符合抄底条件股票%s个' % len(self.selected_stocks))
         return self.selected_stocks, self.select_info
@@ -286,7 +286,7 @@ class SelChaseRise(SelectionRuleBase):
             if self._strengthCheck(break_through, open_prices[-1], close_prices[-1], avg20[-1], avg30[-1], avg60[-1]):
                 selected_stocks.append(stock)
                 # 将突破结果写入 暂存字典
-                self.select_info[stock] = (close_prices[-1], '突破%s均线' % break_through)
+                self.select_info[stock] = (close_prices[-1], '强势突破%s均线' % break_through)
                 self.logger.debug('选出突破中期均线的股票%s' % stock)
         return selected_stocks
 
@@ -309,13 +309,13 @@ class SelChaseRise(SelectionRuleBase):
             return False
         elif len(break_through) < 3:
             # 只突破了2条或者1条中期均线，则必须是强势突破形态，上方不能有明显的均线压制
-            if close_price < avg20 and Utility.incraceRate(avg20, close_price) < 0.03:
+            if close_price < avg20 and Utility.incraceRate(avg20, close_price) < 0.015:
                 # 判断是否被20日线压制(20日线距离收盘价小于3%)
                 return False
-            if close_price < avg30 and Utility.incraceRate(avg30, close_price) < 0.03:
+            if close_price < avg30 and Utility.incraceRate(avg30, close_price) < 0.015:
                 # 判断是否被30日线压制(30日线距离收盘价小于3%)
                 return False
-            if close_price < avg60 and Utility.incraceRate(avg60, close_price) < 0.03:
+            if close_price < avg60 and Utility.incraceRate(avg60, close_price) < 0.015:
                 # 判断是否被60日线压制(60日线距离收盘价小于3%)
                 return False
         # 判断上穿均线和收盘价的位置关系：
@@ -395,3 +395,18 @@ class SelSeekBoard(SelectionRuleBase):
         # 对于打板的股票，入股第三天的成交量超过前两天之和，有可能是主力出逃
         # 但是，目前只是选出，并不是买入，是否买入还要看第二天盘中走势。所以是否要加这个判断还有待商榷。
         pass
+
+
+# 这个方法和其他方都不是一类，所以单独作为一个函数放在这里
+def SelPoolCheck(stocks):
+    # 从数据库取出pool中的数据
+    # 判断追涨的股票有没有踩破10日线
+    check_period = 10
+    selected_stocks = []
+    for stock in stocks:
+        close_prices = history_bars(stock, check_period+1, '1d', 'close')
+        avg10 = talib.MA(close_prices, timeperiod=check_period, matype=0)
+        if close_prices[-1] < avg10[-1]:
+            # 收盘价小于10日线的股票将被挑出来，然后从数据库中删除
+            selected_stocks.append(stock)
+    return selected_stocks
