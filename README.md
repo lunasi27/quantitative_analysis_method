@@ -1,4 +1,5 @@
-# new_test
+# 量化交易分析方法工具集
+右侧交易模型
 
 #开始跑回测
 rqalpha run -f main.py -s 2018-01-01 -e 2018-12-30 -a stock 1000000 -bm 000001.XSHG --plot
